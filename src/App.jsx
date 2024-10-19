@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 function App() {
   const [photo, setPhoto] = useState([]);
@@ -11,11 +11,14 @@ function App() {
   const [battleLog, setBattleLog] = useState([]);
   const [searchSuggestions1, setSearchSuggestions1] = useState([]);
   const [searchSuggestions2, setSearchSuggestions2] = useState([]);
-  const [favorites, setFavorites] = useState(JSON.parse(localStorage.getItem('favorites')) || []);
+
+  // Refs for debounce timeouts
+  const debounceTimeout1 = useRef(null);
+  const debounceTimeout2 = useRef(null);
 
   // Fetch Pokémon list on load
   useEffect(() => {
-    fetch('https://pokeapi.co/api/v2/pokemon?limit=100')
+    fetch('https://pokeapi.co/api/v2/pokemon?limit=500')
       .then((res) => res.json())
       .then((data) => {
         const pokemonList = data.results.map((pokemon, index) => ({
@@ -95,18 +98,25 @@ function App() {
     setBattleLog(log);
   };
 
-  // Add Pokémon to favorites
-
-  // Handle search suggestions
-  const handleInputChange = (e, setName, setSuggestions) => {
+  // Debounced search function
+  const handleInputChange = (e, setName, setSuggestions, debounceTimeout) => {
     const query = e.target.value.toLowerCase();
     setName(query);
-    if (query.length > 0) {
-      const suggestions = photo.filter((p) => p.name.startsWith(query)).map((p) => p.name);
-      setSuggestions(suggestions);
-    } else {
-      setSuggestions([]);
-    }
+
+    // Clear the previous timeout
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+
+    // Set a new timeout
+    debounceTimeout.current = setTimeout(() => {
+      if (query.length > 0) {
+        const suggestions = photo
+          .filter((p) => p.name.startsWith(query))
+          .map((p) => p.name);
+        setSuggestions(suggestions);
+      } else {
+        setSuggestions([]);
+      }
+    }, 300); // 300ms debounce
   };
 
   // Handle suggestion click
@@ -138,7 +148,6 @@ function App() {
     <div key={pokemon.id} className="p-4 border border-gray-300 rounded hover:scale-105 transition-transform">
       <img src={pokemon.url} alt={pokemon.name} width={100} />
       <h3 className="text-lg font-bold">{pokemon.name}</h3>
-      {/* <button onClick={() => addFavoritePokemon(pokemon)} className="text-xs text-blue-500">Add to Favorites</button> */}
     </div>
   ));
 
@@ -154,7 +163,7 @@ function App() {
             placeholder="Enter first Pokémon name"
             className="border border-gray-400 rounded p-2"
             value={name1}
-            onChange={(e) => handleInputChange(e, setName1, setSearchSuggestions1)}
+            onChange={(e) => handleInputChange(e, setName1, setSearchSuggestions1, debounceTimeout1)}
           />
           {searchSuggestions1.length > 0 && (
             <ul className="absolute bg-white rounded shadow-md p-2 w-full z-10">
@@ -176,7 +185,7 @@ function App() {
             placeholder="Enter second Pokémon name"
             className="border border-gray-400 rounded p-2"
             value={name2}
-            onChange={(e) => handleInputChange(e, setName2, setSearchSuggestions2)}
+            onChange={(e) => handleInputChange(e, setName2, setSearchSuggestions2, debounceTimeout2)}
           />
           {searchSuggestions2.length > 0 && (
             <ul className="absolute bg-white rounded shadow-md p-2 w-full z-10">
@@ -205,69 +214,61 @@ function App() {
       {/* Pokémon Stats Comparison */}
       {pokemon1 && pokemon2 && (
         <div className="flex justify-center mt-8">
-        <div className="flex flex-col md:flex-row space-x-4 bg-gray-400 rounded-lg p-4 shadow-2xl w-full max-w-4xl mx-auto">
-          <div className="flex flex-col items-center space-y-2 w-80">
-            <img src={pokemon1.sprites.front_default} alt={pokemon1.name} width={100} />
-            <h3 className="text-2xl font-bold">{pokemon1.name}</h3>
-            <p><strong>Weight:</strong> {pokemon1.weight}</p>
-            <p><strong>Height:</strong> {pokemon1.height}</p>
-            <p><strong>Abilities:</strong> {pokemon1.abilities.map(a => a.ability.name).join(', ')}</p>
-            <h4 className="mt-4">Base Stats</h4>
-            {generateStatBar(pokemon1.stats[0].base_stat, pokemon2.stats[0].base_stat)}
-            {generateStatBar(pokemon1.stats[1].base_stat, pokemon2.stats[1].base_stat)}
-            {generateStatBar(pokemon1.stats[2].base_stat, pokemon2.stats[2].base_stat)}
-          </div>
-          <div className="flex flex-col items-center space-y-2 w-80">
-            <img src={pokemon2.sprites.front_default} alt={pokemon2.name} width={100} />
-            <h3 className="text-2xl font-bold">{pokemon2.name}</h3>
-            <p><strong>Weight:</strong> {pokemon2.weight}</p>
-            <p><strong>Height:</strong> {pokemon2.height}</p>
-            <p><strong>Abilities:</strong> {pokemon2.abilities.map(a => a.ability.name).join(', ')}</p>
-            <h4 className="mt-4">Base Stats</h4>
-            {generateStatBar(pokemon2.stats[0].base_stat, pokemon1.stats[0].base_stat)}
-            {generateStatBar(pokemon2.stats[1].base_stat, pokemon1.stats[1].base_stat)}
-            {generateStatBar(pokemon2.stats[2].base_stat, pokemon1.stats[2].base_stat)}
+          <div className="flex flex-col md:flex-row space-x-4 bg-gray-400 rounded-lg p-4 shadow-2xl w-full max-w-4xl mx-auto">
+            <div className="flex flex-col items-center space-y-2 w-80">
+              <img src={pokemon1.sprites.front_default} alt={pokemon1.name} width={100} />
+              <h2 className="text-xl font-bold">{pokemon1.name}</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {pokemon1.stats.map((stat, idx) => (
+                  <div key={idx}>
+                    {stat.stat.name}: {stat.base_stat}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-col items-center space-y-2 w-80">
+              <img src={pokemon2.sprites.front_default} alt={pokemon2.name} width={100} />
+              <h2 className="text-xl font-bold">{pokemon2.name}</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {pokemon2.stats.map((stat, idx) => (
+                  <div key={idx}>
+                    {stat.stat.name}: {stat.base_stat}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    
       )}
+
+      
+      {/* {pokemon1 && pokemon2 && (
+        <div className="bg-gray-200 rounded-lg p-4 shadow-lg w-full max-w-2xl">
+          <h3 className="text-lg font-semibold">Type Comparison</h3>
+          <p>{compareTypes(pokemon1.types.map((t) => t.type.name), pokemon2.types.map((t) => t.type.name))}</p>
+        </div>
+      )} */}
 
       {/* Battle Simulation */}
       {pokemon1 && pokemon2 && (
-        <>
-          <button
-            onClick={simulateBattle}
-            className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded mt-4"
-          >
-            Simulate Battle
-          </button>
-
-          {battleLog.length > 0 && (
-            <div className="bg-gray-700 p-4 rounded mt-4 text-white">
-              <h4 className="text-xl font-bold">Battle Log</h4>
-              <ul>
-                {battleLog.map((log, idx) => (
-                  <li key={idx}>{log}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </>
+        <button
+          onClick={simulateBattle}
+          className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded mt-4"
+        >
+          Simulate Battle
+        </button>
       )}
 
-      {/* Favorite Pokémon */}
-      {/* <div className="mt-8">
-        <h3 className="text-2xl font-bold text-white">Favorite Pokémon</h3>
-        <ul className="space-y-2">
-          {favorites.map((fav, idx) => (
-            <li key={idx} className="text-white">{fav.name}</li>
-          ))}
-        </ul>
-      </div> */}
+      {/* Battle Log */}
+      {battleLog.length > 0 && (
+        <div className="bg-white p-4 rounded-lg shadow-md mt-4">
+          <h3 className="text-lg font-bold">Battle Log:</h3>
+          <pre>{battleLog.join('\n')}</pre>
+        </div>
+      )}
 
-      {/* Display Pokémon List */}
-      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-4">
+      {/* Rotating Pokémon List */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mt-4">
         {currentPokemonView}
       </div>
     </div>
