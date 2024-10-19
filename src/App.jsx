@@ -15,7 +15,7 @@ function App() {
 
   // Fetch Pokémon list on load
   useEffect(() => {
-    fetch('https://pokeapi.co/api/v2/pokemon?limit=100')
+    fetch('https://pokeapi.co/api/v2/pokemon?limit=500')
       .then((res) => res.json())
       .then((data) => {
         const pokemonList = data.results.map((pokemon, index) => ({
